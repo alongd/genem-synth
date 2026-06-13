@@ -1,0 +1,21 @@
+name: chemprop-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pytorch>=2.1
+  - numpy
+  - pandas
+  - scikit-learn
+  - scipy
+  - rdkit
+  - lightning>=2.0
+  - rich
+  - descriptastorus
+  - optuna
+  - xgboost 
+  - joblib
+  - pip
+  - pip:
+      - git+https://github.com/chemprop/chemprop.git@main

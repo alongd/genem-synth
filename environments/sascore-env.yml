@@ -1,0 +1,11 @@
+name: sascore-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pip
+  - rdkit
+  - numpy
+  - pandas
+  - matplotlib

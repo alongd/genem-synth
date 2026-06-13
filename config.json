@@ -1,0 +1,25 @@
+{
+  "__training_comment": [
+    "training_input_file -> CSV with columns: smiles, consensus_score",
+    "consensus_pairs_file -> CSV with columns: smiles_a, smiles_b, consensus_choice (A/B)",
+    "top_k -> number of top OOF model/config pairs used in the stacking ensemble",
+    "Used when running ./run_training.sh"
+  ],
+  "training_input_file": "data/input/dummy_regression.csv",
+  "consensus_pairs_file": "data/output/dummy_consensus_pairs.csv",
+  "top_k": 10,
+
+  "__prediction_comment": [
+    "prediction_input_file -> CSV with a single column: smiles",
+    "checkpoint_dir is set automatically by ./run_training.sh; leave empty before first training run."
+  ],
+  "prediction_input_file": "data/input/dummy_predict.csv",
+  "output_file": "data/predictions/predicted_results.csv",
+  "checkpoint_dir": "",
+
+  "__legacy_comment": [
+    "model_type and variant are LEGACY -- only used when checkpoint_dir is empty."
+  ],
+  "model_type": "ensemble_model",
+  "variant": "fp_False_pca_False"
+}

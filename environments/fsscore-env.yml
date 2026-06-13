@@ -1,0 +1,15 @@
+name: fsscore-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - scipy
+  - scikit-learn
+  - pytorch
+  - pytorch-lightning
+  - torch-geometric
+  - rdkit
+  - pip:
+    - git+https://github.com/schwallergroup/fsscore.git@main
