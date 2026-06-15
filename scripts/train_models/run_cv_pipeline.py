@@ -56,6 +56,31 @@ from sklearn.preprocessing import StandardScaler
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 warnings.filterwarnings("ignore")
 
+# Progress bars (graceful fallback if tqdm is unavailable). tqdm.write keeps the
+# bar intact while still emitting the detailed per-fold / per-config log lines.
+try:
+    from tqdm.auto import tqdm
+except ImportError:  # pragma: no cover - tqdm is present in fsscore-env
+    class tqdm:  # minimal no-op shim
+        def __init__(self, iterable=None, *a, **k):
+            self._it = iterable if iterable is not None else []
+
+        def __iter__(self):
+            return iter(self._it)
+
+        def set_postfix_str(self, *a, **k):
+            pass
+
+        def set_description(self, *a, **k):
+            pass
+
+        def close(self):
+            pass
+
+        @staticmethod
+        def write(msg, *a, **k):
+            print(msg)
+
 try:
     from sklearn.ensemble import RandomForestRegressor
     _RF_AVAILABLE = True
@@ -453,7 +478,9 @@ if REG_CV_MODE == "nl":
     ft_scores_per_fold = np.full((len(df_clean), N_FOLDS), np.nan)
     all_smiles = df_clean["smiles"].tolist()
 
-    for fold_idx, (train_idx_o, test_idx_o) in enumerate(folds):
+    for fold_idx, (train_idx_o, test_idx_o) in tqdm(
+        enumerate(folds), total=N_FOLDS, desc="Nested FT FSscore"
+    ):
         fold_label = f"fold_{fold_idx}"
         ft_dir = NL_FT_DIR / fold_label / "tuned"
         ckpt_marker = NL_FT_DIR / fold_label / "ft_done.ckpt_path"
@@ -471,14 +498,16 @@ if REG_CV_MODE == "nl":
             raise AssertionError(
                 f"[fold {fold_idx}] {len(leak)} test mols leaked into FT training pairs"
             )
-        print(f"  fold {fold_idx}: {len(train_pairs_k)} train pairs (filtered from {len(pairs_df_full)}); "
-              f"test_mols={len(test_mols_k)}")
+        tqdm.write(
+            f"  fold {fold_idx}: {len(train_pairs_k)} train pairs "
+            f"(filtered from {len(pairs_df_full)}); test_mols={len(test_mols_k)}"
+        )
 
         (NL_FT_DIR / fold_label).mkdir(parents=True, exist_ok=True)
         train_pairs_k.to_csv(NL_FT_DIR / fold_label / "train_pairs.csv", index=False)
 
         if scores_csv.exists() and ckpt_marker.exists():
-            print(f"    cached → loading scores from {scores_csv.name}")
+            tqdm.write(f"    cached → loading scores from {scores_csv.name}")
             cached = pd.read_csv(scores_csv)
             score_map = dict(zip(cached["smiles"], cached["fsscore_ft"]))
             for i, sm in enumerate(all_smiles):
@@ -510,7 +539,7 @@ if REG_CV_MODE == "nl":
             raise RuntimeError(f"No checkpoint produced for fold {fold_idx} under {ft_dir}")
         ckpt = ckpts[-1]
         ckpt_marker.write_text(str(ckpt))
-        print(f"    ckpt: {ckpt.name}")
+        tqdm.write(f"    ckpt: {ckpt.name}")
 
         # Score all 500 molecules
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -602,9 +631,11 @@ for fold_idx, (train_idx, test_idx) in enumerate(folds):
     abs_inner_tr  = train_idx[inner_tr_idx]
     abs_inner_val = train_idx[inner_val_idx]
 
-    for cfg_name, use_fp, use_pca, score_indices in CONFIGS:
+    cfg_bar = tqdm(CONFIGS, total=len(CONFIGS),
+                   desc=f"Fold {fold_idx + 1}/{N_FOLDS}", leave=False)
+    for cfg_name, use_fp, use_pca, score_indices in cfg_bar:
         if use_fp and len(fp_cols) == 0:
-            print(f"    [{cfg_name}] skipping — no FP columns available")
+            tqdm.write(f"    [{cfg_name}] skipping — no FP columns available")
             continue
 
         cfg_model_types = MODEL_TYPES
@@ -735,8 +766,11 @@ for fold_idx, (train_idx, test_idx) in enumerate(folds):
                 "config":     cfg_name,
                 **metrics,
             })
-            print(f"    {model_type:4s} [{cfg_name:11s}]  "
-                  f"R²={metrics['r2']:+.4f}  MAE={metrics['mae']:.4f}")
+            cfg_bar.set_postfix_str(
+                f"{model_type} {cfg_name} R²={metrics['r2']:+.3f}"
+            )
+            tqdm.write(f"    {model_type:4s} [{cfg_name:11s}]  "
+                       f"R²={metrics['r2']:+.4f}  MAE={metrics['mae']:.4f}")
 
 # ---------------------------------------------------------------------------
 # Save OOF predictions (stacking column added after stacking step)

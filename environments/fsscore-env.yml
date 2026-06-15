@@ -13,3 +13,7 @@ dependencies:
   - rdkit
   - pip:
     - git+https://github.com/schwallergroup/fsscore.git@main
+    # run_cv_pipeline.py runs in this env and needs these; installed via pip so the
+    # conda pytorch/torch-geometric solve above is left untouched.
+    - optuna
+    - xgboost

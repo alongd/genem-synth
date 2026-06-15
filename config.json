@@ -8,15 +8,13 @@
   "training_input_file": "data/input/dummy_regression.csv",
   "consensus_pairs_file": "data/output/dummy_consensus_pairs.csv",
   "top_k": 10,
-
   "__prediction_comment": [
     "prediction_input_file -> CSV with a single column: smiles",
     "checkpoint_dir is set automatically by ./run_training.sh; leave empty before first training run."
   ],
   "prediction_input_file": "data/input/dummy_predict.csv",
   "output_file": "data/predictions/predicted_results.csv",
-  "checkpoint_dir": "",
-
+  "checkpoint_dir": "/home/sam-cogan/Code/synthpred-public/models/cv_runs/20260614_100006",
   "__legacy_comment": [
     "model_type and variant are LEGACY -- only used when checkpoint_dir is empty."
   ],

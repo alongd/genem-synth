@@ -43,10 +43,15 @@ def main():
         "consensus_pairs_file", "data/output/dummy_consensus_pairs.csv"
     )
 
+    print("=" * 66)
+    print("Fine-tuning production FSscore on ALL consensus pairs ...")
+    print("=" * 66)
+
     pairs = pd.read_csv(pairs_csv)
     smiles = list(zip(pairs["smiles_a"], pairs["smiles_b"]))
     target = (pairs["consensus_choice"] == "A").astype(int).tolist()
     print(f"Loaded {len(smiles)} pairs from {pairs_csv}")
+    print(f"Fine-tuning for 20 epochs (CPU) — Lightning progress follows ...")
 
     PROD_DIR.mkdir(parents=True, exist_ok=True)
 

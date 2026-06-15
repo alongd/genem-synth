@@ -28,6 +28,7 @@ fsscore/data/processed/*
 !fsscore/data/processed/.gitkeep
 
 # Scored / processed intermediates and predictions
+data/input/molecules_cleaned.csv
 data/processed/*
 !data/processed/.gitkeep
 data/predictions/*
