@@ -1,9 +1,15 @@
 name: syba-env
 channels:
   - conda-forge
+  - rdkit
+  - lich
   - defaults
 dependencies:
   - python=3.9
   - rdkit
   - numpy
   - pandas
+  # Canonical SYBA package (noarch). Bundles the 115 MB fragment-score resource
+  # (syba/resources/syba4.csv.gz) that SybaClassifier().fitDefaultScore() loads,
+  # so no Git LFS download of that file is required.
+  - syba

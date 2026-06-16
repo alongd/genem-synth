@@ -55,6 +55,18 @@ INPUT_FILE = Path(args.input).resolve()
 OUTPUT_FILE = Path(args.output).resolve()
 SMILES_COLUMN = "smiles"
 
+# CheMeleonFingerprint loads weights from ~/.chemprop/chemeleon_mp.pt, downloading
+# them from Zenodo on first use. This repo ships those weights at models/chemeleon_mp.pt,
+# so seed the cache from the bundled copy — works offline and avoids a network dependency.
+import shutil
+REPO_DIR = Path(__file__).resolve().parents[2]
+_bundled = REPO_DIR / "models" / "chemeleon_mp.pt"
+_cache = Path.home() / ".chemprop" / "chemeleon_mp.pt"
+if _bundled.exists() and not _cache.exists():
+    _cache.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(_bundled, _cache)
+    print(f"Seeded CheMeleon weights cache from {_bundled} -> {_cache}")
+
 # -------- Load input --------
 print(f"Reading: {INPUT_FILE}")
 df = pd.read_csv(INPUT_FILE)

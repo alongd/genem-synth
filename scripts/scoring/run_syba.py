@@ -1,14 +1,10 @@
-import os
 import sys
 import pandas as pd
 
-# Setup import path for vendored syba
-current_dir = os.path.dirname(os.path.abspath(__file__))
-syba_path = os.path.join(current_dir, "..", "tools", "syba")
-sys.path.append(syba_path)
-
 from rdkit import Chem
-from syba import SybaClassifier
+# Canonical SYBA, installed via conda into syba-env (channels: rdkit, lich).
+# Its bundled resources/syba4.csv.gz (115 MB) is what fitDefaultScore() loads.
+from syba.syba import SybaClassifier
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:

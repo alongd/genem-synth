@@ -27,18 +27,24 @@ The pipeline chains six synthesizability signals:
 
 - A Unix shell (Linux / macOS / WSL / Git Bash)
 - [Conda](https://docs.conda.io/) on your `PATH`
-- [Git LFS](https://git-lfs.github.com/) (one vendored model file is stored in LFS)
+- The OpenMP runtime `libgomp` (needed by XGBoost/RAscore). The installer adds it
+  to `rascore-env` automatically; if you still hit
+  `libgomp.so.1: cannot open shared object file`, install the system package:
+  `sudo apt-get install -y libgomp1` (Debian/Ubuntu/WSL).
 
 ## 2. Setup
 
 ```bash
-git lfs install
 git clone <your-fork-url> synthpred
 cd synthpred
-git lfs pull            # fetch the LFS-tracked SYBA resource
 
 python env_installer.py # creates all 6 conda environments
 ```
+
+> **SYBA data.** SYBA needs a ~115 MB fragment-score table (`syba4.csv.gz`).
+> It is **not** stored in this repo — it ships with the official `syba` conda
+> package, which `syba-env` installs automatically (channels `rdkit`, `lich`).
+> No separate download step is required.
 
 `env_installer.py` creates these environments:
 `sascore-env`, `scscore-env`, `syba-env`, `chemprop-env`, `fsscore-env`, and
@@ -122,8 +128,12 @@ ensemble, and writes `data/predictions/predicted_results.csv`
 - **`rascore-env` fails to build.** Try `tensorflow-cpu==2.5.0`, or relax the version
   in `env_installer.py`. The pipeline aborts if RAscore can't score, because its
   column is a required feature.
-- **`git lfs pull` did nothing / SYBA errors.** Ensure `git lfs install` ran before
-  cloning; the SYBA resource (`scripts/tools/syba/resources/syba4.csv.gz`) is in LFS.
+- **`libgomp.so.1: cannot open shared object file`.** XGBoost (used by RAscore)
+  needs the OpenMP runtime. The installer adds `libgomp` to `rascore-env`; if it
+  still fails, install the system package: `sudo apt-get install -y libgomp1`.
+- **SYBA errors / `syba4.csv.gz` not found.** The fragment-score table ships inside
+  the `syba` conda package installed into `syba-env`. If it is missing, recreate the
+  env: `conda env remove -n syba-env && conda env create -f environments/syba-env.yml`.
 - **CPU only.** Everything is configured to run on CPU; no GPU is required.
 
 ## 7. Repository layout

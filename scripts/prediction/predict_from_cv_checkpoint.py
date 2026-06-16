@@ -66,7 +66,11 @@ if not model_dirs:
     print(f"ERROR: No model directories found in {checkpoint_dir}")
     sys.exit(1)
 
-meta_features = []
+# Map each base model's prediction by its directory name ("{model_type}_{config}").
+# The order in which the ridge meta-learner expects these columns is recorded in
+# stacking_ensemble/stacking_results.json (ranked by OOF R²), NOT the alphabetical
+# directory order — assembling them in the wrong order silently corrupts predictions.
+preds_by_dir = {}
 
 for model_dir in model_dirs:
     cfg_path = model_dir / "config.json"
@@ -115,25 +119,40 @@ for model_dir in model_dirs:
         y_pred_scaled = model.predict(X_input)
 
     y_pred = y_scaler.inverse_transform(y_pred_scaled.reshape(-1, 1)).flatten()
-    meta_features.append(y_pred)
+    preds_by_dir[model_dir.name] = y_pred
     print(f"  {model_dir.name}: done")
 
-if not meta_features:
+if not preds_by_dir:
     print("ERROR: No base model predictions could be generated.")
     sys.exit(1)
 
 if args.single_model:
     # Single model: use the one prediction directly
-    preds = meta_features[0]
+    preds = next(iter(preds_by_dir.values()))
 else:
-    # Apply ridge meta-learner
-    X_meta = np.column_stack(meta_features)
-
+    # Apply ridge meta-learner. The meta-feature columns MUST be ordered exactly as
+    # they were when the ridge was fit at training time. run_cv_pipeline.py builds the
+    # meta-matrix from the top-K configs ranked by OOF R² and records that order in
+    # stacking_results.json -> top_k_configs, so we reproduce it here.
     stack_dir      = checkpoint_dir / "stacking_ensemble"
     ridge_meta     = joblib.load(stack_dir / "ridge_meta.pkl")
     stack_x_scaler = joblib.load(stack_dir / "stack_x_scaler.pkl")
     stack_y_scaler = joblib.load(stack_dir / "stack_y_scaler.pkl")
 
+    with open(stack_dir / "stacking_results.json") as f:
+        stacking_results = json.load(f)
+    ordered_names = [
+        f"{c['model']}_{c['config']}" for c in stacking_results["top_k_configs"]
+    ]
+    meta_features = []
+    for name in ordered_names:
+        if name not in preds_by_dir:
+            print(f"ERROR: stacking expects base model '{name}' but its prediction "
+                  f"is missing (model dir absent or skipped).")
+            sys.exit(1)
+        meta_features.append(preds_by_dir[name])
+
+    X_meta = np.column_stack(meta_features)
     X_meta_scaled  = stack_x_scaler.transform(X_meta)
     preds_scaled   = ridge_meta.predict(X_meta_scaled)
     preds          = stack_y_scaler.inverse_transform(preds_scaled.reshape(-1, 1)).flatten()

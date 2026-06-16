@@ -65,7 +65,9 @@ TOOLS = [
     ("sascore-env", "run_sascore.py"),
     ("scscore-env", "run_scscore.py"),
     ("syba-env", "run_syba.py"),
-    ("rascore-env", "run_rascore_tensor.py"),
+    # Only the RAscore XGB column feeds the trained models (run_cv_pipeline.py uses
+    # rascore_xgb, not the TF-NN variant), so we skip run_rascore_tensor.py here: its
+    # output is unused and its TensorFlow model is an avoidable failure point.
     ("rascore-env", "run_rascore_xgb.py"),
     ("fsscore-env", "run_fsscore.py")
 ]
