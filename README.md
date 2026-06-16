@@ -1,4 +1,4 @@
-# SynthPred — Molecular Synthesizability Prediction
+# SynthPred-Public — Molecular Synthesizability Prediction
 
 A reproducible machine-learning pipeline that predicts how hard a molecule is to
 synthesize from its SMILES string. It combines several published synthesizability
@@ -35,7 +35,7 @@ The pipeline chains six synthesizability signals:
 ## 2. Setup
 
 ```bash
-git clone <your-fork-url> synthpred
+git clone https://github.com/samcogan21/synthpred-public.git
 cd synthpred
 
 python env_installer.py # creates all 6 conda environments
