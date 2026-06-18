@@ -25,7 +25,7 @@ The pipeline chains six synthesizability signals:
 
 ## 1. Requirements
 
-- A Unix shell (Linux / macOS / WSL / Git Bash)
+- A Unix shell (Linux / WSL / Git Bash). It was not tested on macOS and may not be supported.
 - [Conda](https://docs.conda.io/) on your `PATH`
 - The OpenMP runtime `libgomp` (needed by XGBoost/RAscore). The installer adds it
   to `rascore-env` automatically; if you still hit
