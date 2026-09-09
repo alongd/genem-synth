@@ -273,9 +273,24 @@ def run_cv(
     label_col="Chosen_Molecule",
     smiles_i_col="smiles_i",
     smiles_j_col="smiles_j",
+    fold_mode: str = "molecule_heldout",
 ):
     outdir.mkdir(parents=True, exist_ok=True)
-    folds = build_folds_rowwise(df, k=k, seed=seed, label_col=label_col)
+    # "molecule_heldout" is the no-leakage protocol described in the Methods and
+    # the one behind the published Stage-1 numbers: a pair is tested only when both
+    # of its endpoints fall in the held-out bucket, so spanning pairs are dropped.
+    # That is why 156 of the 208 high-quality pairs appear in any test set --
+    # "rowwise" would test all 208 and allows molecule overlap by design.
+    # This previously called build_folds_rowwise unconditionally, with no way to
+    # reach the correct builder.
+    if fold_mode == "molecule_heldout":
+        folds = build_folds_molecule_heldout(
+            df, smiles_i_col=smiles_i_col, smiles_j_col=smiles_j_col, k=k, seed=seed
+        )
+    elif fold_mode == "rowwise":
+        folds = build_folds_rowwise(df, k=k, seed=seed, label_col=label_col)
+    else:
+        raise ValueError(f"fold_mode must be 'molecule_heldout' or 'rowwise', got {fold_mode!r}")
 
     fold_summaries = []
     acc_ft, auc_ft, acc_base, auc_base = [], [], [], []
@@ -384,6 +399,11 @@ def main():
     ap.add_argument("--outdir", default="cv_out")
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--fold_mode", choices=["molecule_heldout", "rowwise"],
+                    default="molecule_heldout",
+                    help="molecule_heldout (default) is the no-leakage protocol used for the "
+                         "published results; rowwise allows molecule overlap between train and "
+                         "test by design and is retained only for comparison.")
     ap.add_argument("--model_path", required=True, help="Path to base checkpoint for fine-tuning")
 
     # Column controls (defaults match data/input/l_data.csv)
@@ -436,6 +456,7 @@ def main():
         label_col=args.label_col,
         smiles_i_col=args.smiles_i_col,
         smiles_j_col=args.smiles_j_col,
+        fold_mode=args.fold_mode,
     )
 
 if __name__ == "__main__":

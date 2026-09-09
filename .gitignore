@@ -38,3 +38,15 @@ data/predictions/*
 wandb/
 lightning_logs/
 *.log
+
+# --- RESTRICTED: expert annotation records and everything derived from them ---
+# The annotation data was collected at an industrial EM facility and is not
+# cleared for public release. Stage 1 writes real consensus scores into
+# data/output/, which was previously unprotected. Only the dummy fixtures that
+# ship with this repo are tracked. Do not relax these rules.
+data/input/*.csv
+!data/input/dummy_*.csv
+!data/input/example_molecules.csv
+data/output/*
+!data/output/dummy_*.csv
+!data/output/.gitkeep

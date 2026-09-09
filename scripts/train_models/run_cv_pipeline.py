@@ -25,9 +25,15 @@ import sys
 import tempfile
 import warnings
 
-# Regression CV mode: "rowwise" (legacy, leaky single FT checkpoint) or
-# "nl" (no-leakage, nested 5-fold FT — one FT model per regression outer fold).
-REG_CV_MODE = os.environ.get("REG_CV_MODE", "rowwise").lower()
+# Regression CV mode: "nl" (no-leakage, nested 5-fold FT — one FT model per
+# regression outer fold) or "rowwise" (legacy, leaky single FT checkpoint).
+#
+# The default is "nl". This is the protocol described in the Methods and the one
+# that produced the published results; "rowwise" selects a single fine-tuned
+# checkpoint using the same pairs it was fine-tuned on and is retained only for
+# comparison. It previously defaulted to "rowwise", so anyone invoking this
+# script directly rather than through run_training.sh silently got leaked numbers.
+REG_CV_MODE = os.environ.get("REG_CV_MODE", "nl").lower()
 if REG_CV_MODE not in ("rowwise", "nl"):
     raise ValueError(f"REG_CV_MODE must be 'rowwise' or 'nl', got: {REG_CV_MODE!r}")
 _REG_OUT_SUFFIX = os.environ.get("REG_OUT_SUFFIX", "")  # e.g. "_3x3"
