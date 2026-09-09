@@ -118,7 +118,10 @@ else:
     OUT_DIR = REPO_DIR / "analysis_output" / "regression_cv"
     NL_FT_DIR = None
 
-with open(REPO_DIR / "config.json") as _f:
+# SYNTHPRED_CONFIG lets a driver (e.g. reproduce.sh) point the pipeline at its own
+# config without overwriting the user's config.json. Defaults to config.json.
+_CONFIG_PATH = Path(os.environ.get("SYNTHPRED_CONFIG", REPO_DIR / "config.json"))
+with open(_CONFIG_PATH) as _f:
     _config = json.load(_f)
 REG_CSV = REPO_DIR / _config["training_input_file"]
 HQ_PAIRS_CSV = REPO_DIR / _config.get("consensus_pairs_file", "data/output/dummy_consensus_pairs.csv")
