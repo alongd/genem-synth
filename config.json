@@ -14,7 +14,7 @@
   ],
   "prediction_input_file": "data/input/dummy_predict.csv",
   "output_file": "data/predictions/predicted_results.csv",
-  "checkpoint_dir": "/home/samcogan/code/synthpred-public/models/cv_runs/20260616_155552",
+  "checkpoint_dir": "",
   "__legacy_comment": [
     "model_type and variant are LEGACY -- only used when checkpoint_dir is empty."
   ],
