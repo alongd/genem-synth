@@ -9,7 +9,18 @@ computed for those configurations only, in the order given, instead of for all c
 exists so a completed fit can be extended to extra query rows at a fraction of the cost; the
 refit is only trustworthy if its predictions reproduce the original run's exactly on the rows
 the two have in common, so a caller that uses it must check that.
+
+`base_checkpoint_dir` persists each base fit's prediction vector to disk, so a fit stopped by an
+external time limit resumes instead of restarting. A hit is exactly equivalent to a miss: every
+base fit builds its own seeded Optuna sampler, seeds its model internally, and consumes no global
+random state, so omitting a call cannot perturb any later one. The held-out boundary is still
+asserted on a hit, and a checkpoint whose recorded identity or digest disagrees is an error, never
+a silent reuse.
 """
+from dataclasses import asdict
+import hashlib
+import json
+from pathlib import Path
 from time import perf_counter
 
 import numpy as np
@@ -24,8 +35,47 @@ from nested_evaluation import MidCDF, NestedEvaluator, make_splits
 
 
 class FinalFitEvaluator(NestedEvaluator):
+    # Set by a caller that wants base fits checkpointed to disk. None disables checkpointing,
+    # which is the behaviour of every run made before this option existed.
+    base_checkpoint_dir = None
+
+    def cached_base(self, candidate, train, query, role, tag):
+        """`fit_base`, with its returned prediction vector persisted under an identity key."""
+        if self.base_checkpoint_dir is None:
+            return self.fit_base(candidate, train, query, role)
+        identity = dict(candidate=candidate.name, role=role, tag=tag, fold=int(self.outer_fold),
+                        train=list(map(int, train)), query=list(map(int, query)),
+                        settings=asdict(self.settings), n_ids=len(self.features.ids))
+        key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+        directory = Path(self.base_checkpoint_dir)
+        directory.mkdir(parents=True, exist_ok=True)
+        values_file, manifest_file = directory / f'{key}.npy', directory / f'{key}.json'
+        if values_file.exists() and manifest_file.exists():
+            manifest = json.loads(manifest_file.read_text())
+            digest = hashlib.sha256(values_file.read_bytes()).hexdigest()
+            if manifest['identity'] != identity or manifest['values_sha256'] != digest:
+                raise ValueError('Base-fit checkpoint provenance mismatch or corruption')
+            values = np.load(values_file, allow_pickle=False)
+            if values.shape != (len(query),) or not np.isfinite(values).all():
+                raise ValueError('Invalid cached base-fit prediction')
+            self.record('cached_base_' + role, train, query)
+            self.checkpoint['hits'] += 1
+            return values
+        # The dtype is preserved, not widened: the meta-model sees a column stack of the base
+        # predictions, so casting a float32 base fit to float64 here would move `stack` by about
+        # 5e-8 against an uncheckpointed run. Checked on the pilot profile.
+        values = np.asarray(self.fit_base(candidate, train, query, role))
+        np.save(values_file, values, allow_pickle=False)
+        manifest_file.write_text(json.dumps(
+            dict(identity=identity,
+                 values_sha256=hashlib.sha256(values_file.read_bytes()).hexdigest()), indent=2) + '\n')
+        self.checkpoint['misses'] += 1
+        return values
+
     def fit_final(self, train, query, fold_number=0, selection=None):
         start = perf_counter()
+        self.checkpoint = dict(directory=None if self.base_checkpoint_dir is None
+                               else str(self.base_checkpoint_dir), hits=0, misses=0)
         self.features.clear_transforms()
         train, query = np.asarray(train, dtype=int), np.asarray(query, dtype=int)
         if (set(train) != set(self.primary) or len(np.unique(train)) != len(train)
@@ -52,8 +102,9 @@ class FinalFitEvaluator(NestedEvaluator):
             print(f"final: inner {inner_fold + 1}/{len(inner_splits)}", flush=True)
             for position, column in enumerate(columns):
                 candidate = self.configurations[column]
-                oof[val_positions, position] = self.fit_base(
-                    candidate, train[fit_positions], train[val_positions], 'inner')
+                oof[val_positions, position] = self.cached_base(
+                    candidate, train[fit_positions], train[val_positions], 'inner',
+                    f'inner{inner_fold}')
                 print(f"  {candidate.name}", flush=True)
             self.features.clear_transforms()
         if not np.isfinite(oof).all():
@@ -75,7 +126,8 @@ class FinalFitEvaluator(NestedEvaluator):
                             n_jobs=1, error_score='raise')
         meta.fit(oof[:, selected], self.target[train])
         base = np.column_stack([
-            self.fit_base(self.configurations[columns[j]], train, query, 'final') for j in selected
+            self.cached_base(self.configurations[columns[j]], train, query, 'final', 'final')
+            for j in selected
         ])
         predictions = {'stack': meta.predict(base), 'selected_single': base[:, 0]}
         baseline_tools = sorted(set(self.features.scores) | (
@@ -99,5 +151,5 @@ class FinalFitEvaluator(NestedEvaluator):
             predictions={name: pred.tolist() for name, pred in predictions.items()},
             raw_scores=raw_scores, raw_training_scores=raw_training_scores,
             inner_splits=[dict(train=train[a].tolist(), test=train[b].tolist()) for a, b in inner_splits],
-            seconds=perf_counter() - start,
+            seconds=perf_counter() - start, checkpoint=dict(self.checkpoint),
             audit=self.audit[audit_start:])

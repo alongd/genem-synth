@@ -68,6 +68,11 @@ def main():
                         help='Also score external molecules that duplicate a training structure. '
                              'Those rows are then IN-SAMPLE and the run must be reported as '
                              'contaminated for the fitted model; the baselines are unaffected.')
+    parser.add_argument('--base-checkpoint',
+                        help='Directory in which each base fit persists its prediction vector, so '
+                             'a fit stopped by an external time limit resumes instead of '
+                             'restarting. Reuse is keyed on the full fitting identity and is '
+                             'equivalent to recomputing; see final_fit.FinalFitEvaluator.')
     parser.add_argument('--threads', type=int, default=2)
     args = parser.parse_args()
     selection, expected_alpha = None, None
@@ -108,6 +113,7 @@ def main():
         excluded_training_overlaps=[] if args.include_training_overlaps else overlaps,
         scored_training_overlaps=overlaps if args.include_training_overlaps else [],
         precomputed_selection=selection,
+        base_checkpoint=None if not args.base_checkpoint else str(outside_checkout(args.base_checkpoint)),
         input_sha256={k: digest_file(getattr(args, k)) for k in ('regression', 'pairs', 'features')},
         source_sha256={p.name: digest_file(p) for p in Path(__file__).parent.glob('*.py')
                        if p.name in ('nested_evaluation.py', 'evaluation_features.py', 'final_fit.py',
@@ -139,6 +145,8 @@ def main():
             return
         final_evaluator, source = evaluator(FinalFitEvaluator, primary, args.cache)
         final_evaluator.allow_query_group_overlap = args.include_training_overlaps
+        if args.base_checkpoint:
+            final_evaluator.base_checkpoint_dir = outside_checkout(args.base_checkpoint)
         result = final_evaluator.fit_final(primary, query, selection=selection)
         if expected_alpha is not None and result['ridge_alpha'] != expected_alpha:
             raise ValueError(f"Ridge alpha {result['ridge_alpha']!r} does not reproduce the recorded "
@@ -152,7 +160,8 @@ def main():
         atomic_json(output / 'predictions.sha256.json',
                     {name: digest_file(output / name) for name in ('predictions.csv', 'final-fit.json')})
         print(json.dumps(dict(n_query=len(query), selected=result['selected'],
-                              ridge_alpha=result['ridge_alpha'], seconds=result['seconds']), indent=2))
+                              ridge_alpha=result['ridge_alpha'], seconds=result['seconds'],
+                              checkpoint=result.get('checkpoint')), indent=2))
 
 
 if __name__ == '__main__':
