@@ -61,8 +61,19 @@ def main():
         parser.add_argument('--' + name, required=True)
     parser.add_argument('--profile', choices=['pilot', 'full'], required=True)
     parser.add_argument('--check-equivalence', action='store_true')
+    parser.add_argument('--selection', help='JSON file holding a "selected" list from a completed fit '
+                                           '(and optionally "ridge_alpha" to assert). Reuses that '
+                                           'selection instead of re-ranking every candidate.')
+    parser.add_argument('--include-training-overlaps', action='store_true',
+                        help='Also score external molecules that duplicate a training structure. '
+                             'Those rows are then IN-SAMPLE and the run must be reported as '
+                             'contaminated for the fitted model; the baselines are unaffected.')
     parser.add_argument('--threads', type=int, default=2)
     args = parser.parse_args()
+    selection, expected_alpha = None, None
+    if args.selection:
+        payload = json.loads(Path(args.selection).read_text())
+        selection, expected_alpha = list(payload['selected']), payload.get('ridge_alpha')
     output = outside_checkout(args.output)
     if output.exists() and any(output.iterdir()):
         raise ValueError('Use a new output directory')
@@ -72,6 +83,8 @@ def main():
                         top_k=4 if pilot else 10, threads=args.threads)
     (ids, groups, target, scores, embedded, left, right, labels,
      primary, query, overlaps) = load(args.regression, args.pairs, args.features)
+    if args.include_training_overlaps:
+        query = np.arange(len(primary), len(ids), dtype=int)
     configurations = candidates(pilot=pilot)
     import torch
     torch.set_num_threads(args.threads)
@@ -91,7 +104,10 @@ def main():
 
     provenance = dict(
         profile=args.profile, settings=asdict(settings), n_ids=len(ids), n_primary=len(primary),
-        n_query=len(query), excluded_training_overlaps=overlaps,
+        n_query=len(query), include_training_overlaps=args.include_training_overlaps,
+        excluded_training_overlaps=[] if args.include_training_overlaps else overlaps,
+        scored_training_overlaps=overlaps if args.include_training_overlaps else [],
+        precomputed_selection=selection,
         input_sha256={k: digest_file(getattr(args, k)) for k in ('regression', 'pairs', 'features')},
         source_sha256={p.name: digest_file(p) for p in Path(__file__).parent.glob('*.py')
                        if p.name in ('nested_evaluation.py', 'evaluation_features.py', 'final_fit.py',
@@ -122,7 +138,11 @@ def main():
             print(json.dumps(report, indent=2))
             return
         final_evaluator, source = evaluator(FinalFitEvaluator, primary, args.cache)
-        result = final_evaluator.fit_final(primary, query)
+        final_evaluator.allow_query_group_overlap = args.include_training_overlaps
+        result = final_evaluator.fit_final(primary, query, selection=selection)
+        if expected_alpha is not None and result['ridge_alpha'] != expected_alpha:
+            raise ValueError(f"Ridge alpha {result['ridge_alpha']!r} does not reproduce the recorded "
+                             f"{expected_alpha!r}; the reused selection is not equivalent")
         result.update(ids=[ids[i] for i in result['query']], settings=asdict(settings),
                       feature_fits=source.records, timings=final_evaluator.timings)
         atomic_json(output / 'final-fit.json', result)

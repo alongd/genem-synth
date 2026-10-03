@@ -9,6 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts/train_models'))
 from evaluation_features import FSScoreFeatures, feature_identity, training_pair_rows
+from final_fit import FinalFitEvaluator
 from nested_evaluation import (Candidate, FeatureSpace, MidCDF, NestedEvaluator,
                                Settings, make_splits)
 
@@ -234,3 +235,53 @@ def test_actual_base_learner_smoke(model):
     prediction = evaluator.fit_base(Candidate(model, ('sa', 'sc'), 'pca'),
                                      np.arange(48), np.arange(48, 60), 'outer')
     assert prediction.shape == (12,) and np.isfinite(prediction).all()
+
+
+def final_engine(X, y, left, right, labels, groups=None, primary=None):
+    learned = LearnedSignal(X, left, right, labels)
+    space = FeatureSpace([f'row{i}' for i in range(len(y))], {'sa': X[:, 0], 'sc': X[:, 1]},
+                         X, learned=learned, groups=groups)
+    primary = np.arange(48) if primary is None else np.asarray(primary)
+    target = np.full(len(y), np.nan)
+    target[primary] = y[primary]
+    configurations = [Candidate('linear', ('sa',)), Candidate('linear', ('sc',)),
+                      Candidate('linear', ('sa', 'sc')), Candidate('linear', ('sa', 'ft'), 'pca')]
+    return FinalFitEvaluator(space, target, configurations,
+                             Settings(inner_folds=3, trials=1, top_k=2), primary), learned
+
+
+def test_precomputed_selection_reproduces_the_full_fit_exactly():
+    X, y, left, right, labels = fixture()
+    query = np.arange(48, 60)
+    full, _ = final_engine(X, y, left, right, labels)
+    a = full.fit_final(np.arange(48), query)
+    reused, _ = final_engine(X, y, left, right, labels)
+    b = reused.fit_final(np.arange(48), query, selection=a['selected'])
+    assert b['selection_source'] == 'precomputed' and a['selection_source'] == 'inner_oof'
+    assert b['selected'] == a['selected'] and b['ridge_alpha'] == a['ridge_alpha']
+    assert b['ridge_coefficients'] == a['ridge_coefficients']
+    for name, values in a['predictions'].items():
+        assert np.array_equal(values, b['predictions'][name]), name
+    for name in b['selection_scores']:
+        assert b['selection_scores'][name] == a['selection_scores'][name]
+
+
+@pytest.mark.parametrize('selection', [['linear:sa:none'], ['nope:x:none', 'linear:sa:none'],
+                                       ['linear:sa:none', 'linear:sa:none']])
+def test_an_unusable_precomputed_selection_fails_closed(selection):
+    X, y, left, right, labels = fixture()
+    engine_, _ = final_engine(X, y, left, right, labels)
+    with pytest.raises(ValueError):
+        engine_.fit_final(np.arange(48), np.arange(48, 60), selection=selection)
+
+
+def test_query_rows_that_duplicate_training_structures_need_an_explicit_opt_in():
+    X, y, left, right, labels = fixture()
+    groups = np.array([f'g{i}' for i in range(48)] + [f'g{i}' for i in range(12)])
+    engine_, _ = final_engine(X, y, left, right, labels, groups=groups)
+    with pytest.raises(AssertionError, match='Molecular representation overlap'):
+        engine_.fit_final(np.arange(48), np.arange(48, 60))
+    allowed, _ = final_engine(X, y, left, right, labels, groups=groups)
+    allowed.allow_query_group_overlap = True
+    result = allowed.fit_final(np.arange(48), np.arange(48, 60))
+    assert len(result['predictions']['stack']) == 12

@@ -238,6 +238,12 @@ class FeatureSpace:
 
 
 class NestedEvaluator:
+    # Permit query rows that are the same molecular structures as training rows. Off by default:
+    # the group check in `record` is what keeps a held-out evaluation honest, and nothing in the
+    # ordinary evaluation path turns it off. Only a run whose purpose is to quantify that
+    # contamination, and that reports the affected query rows as in-sample, may set it.
+    allow_query_group_overlap = False
+
     def __init__(self, features, target, configurations, settings, primary_indices=None):
         self.features = features
         self.target = np.asarray(target, dtype=float)
@@ -266,7 +272,8 @@ class NestedEvaluator:
         train, query = set(map(int, train)), set(map(int, query))
         if not train <= self.allowed or train & query:
             raise AssertionError(f"Held-out leakage in {stage}")
-        if (set(self.features.groups[list(train)]) & set(self.features.groups[list(query)])):
+        if (not self.allow_query_group_overlap
+                and set(self.features.groups[list(train)]) & set(self.features.groups[list(query)])):
             raise AssertionError(f"Molecular representation overlap in {stage}")
         self.audit.append(dict(outer_fold=self.outer_fold, stage=stage,
                                train=sorted(train), query=sorted(query)))
