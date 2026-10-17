@@ -1,0 +1,41 @@
+GenEM-Synth
+===========
+
+Code written for this project is released under the MIT License (see LICENSE).
+This repository also redistributes third-party components and, for some of
+them, pretrained model weights. Each keeps its own license, reproduced in the
+tree at the path given below.
+
+Redistributed components
+------------------------
+
+| Component   | Upstream                                      | License      | License file in this repo              |
+| ----------- | --------------------------------------------- | ------------ | -------------------------------------- |
+| SAscore     | https://github.com/rdkit/rdkit                | BSD-3-Clause | scripts/tools/sascore/license.txt      |
+| SCScore     | https://github.com/connorcoley/scscore        | MIT          | scripts/tools/scscore/LICENSE.txt      |
+| RAscore     | https://github.com/reymond-group/RAscore      | MIT          | scripts/tools/rascore/LICENSE.txt      |
+| FSscore     | https://github.com/schwallergroup/fsscore     | MIT          | fsscore/LICENSE.txt                    |
+| CheMeleon   | https://github.com/JacksonBurns/chemeleon     | MIT          | scripts/tools/chemeleon/LICENSE.txt    |
+
+Pretrained weights for FSscore, RAscore, SCScore, SAscore and CheMeleon are
+included so the pipeline reproduces the published results in one step. They are
+the work of their respective authors, are covered by the licenses above, and are
+not relicensed here.
+
+Invoked but not redistributed
+-----------------------------
+
+SYBA (https://github.com/lich-uct/syba) is licensed under GPL-3.0. Its source is
+NOT included in this repository: it is installed from its own upstream
+distribution into a separate conda environment and invoked as a separate
+program, so no GPL-licensed code is combined with or redistributed by this
+project. Only its license text is kept, at scripts/tools/syba/LICENSE.txt, for
+reference. SYBA's ~115 MB fragment-score table is likewise obtained from the
+upstream conda package rather than from here; see README section 2.
+
+Data
+----
+
+The dummy CSVs under data/ are fabricated scores over public molecules, included
+so the pipeline can be run end to end without restricted inputs. The annotation
+records underlying the published analyses are not part of this repository.

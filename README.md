@@ -1,4 +1,4 @@
-# SynthPred-Public — Molecular Synthesizability Prediction
+# GenEM-Synth — Molecular Synthesizability Prediction
 
 A reproducible machine-learning pipeline that predicts how hard a molecule is to
 synthesize from its SMILES string. It combines several published synthesizability
@@ -35,8 +35,8 @@ The pipeline chains six synthesizability signals:
 ## 2. Setup
 
 ```bash
-git clone https://github.com/samcogan21/synthpred-public.git
-cd synthpred
+git clone https://github.com/alongd/genem-synth.git
+cd genem-synth
 
 python env_installer.py # creates all 6 conda environments
 ```
